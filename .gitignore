@@ -1,0 +1,17 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+.idea/
+*.iws
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+*.log
+*.env
+.env
+.env.local
+
+HELP.md
