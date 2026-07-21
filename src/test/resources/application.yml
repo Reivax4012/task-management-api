@@ -1,0 +1,18 @@
+# Configuration appliquee uniquement aux tests : base H2 en memoire, jetable et isolee,
+# ce qui permet de lancer la suite sans PostgreSQL demarre.
+spring:
+  datasource:
+    url: jdbc:h2:mem:hub;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    show-sql: false
+
+logging:
+  level:
+    com.epitech.hub: DEBUG

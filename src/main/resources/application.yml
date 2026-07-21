@@ -2,5 +2,27 @@ spring:
   application:
     name: hub
 
+  datasource:
+    # Surchargeable par variables d'environnement (cf. docker-compose.yml).
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/hub}
+    username: ${DB_USERNAME:hub}
+    password: ${DB_PASSWORD:hub}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      # 'update' convient au developpement ; une vraie mise en production
+      # passerait par des migrations versionnees (Flyway/Liquibase).
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: false
+
 server:
   port: 8080
+
+logging:
+  level:
+    com.epitech.hub: DEBUG
