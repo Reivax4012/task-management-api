@@ -72,4 +72,23 @@ public class Project {
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /**
+     * Rattache une adhesion en tenant <b>les deux cotes</b> de la relation a jour.
+     * <p>
+     * Enregistrer un ProjectMember directement par son depot laisserait cette liste
+     * vide en memoire : la cascade porte sur la collection, elle ne supprimerait donc
+     * pas l'adhesion a la suppression du projet, et le flush echouerait sur une ligne
+     * orpheline referencant un projet disparu.
+     */
+    public void addMember(ProjectMember member) {
+        members.add(member);
+        member.setProject(this);
+    }
+
+    /** Meme raison que {@link #addMember(ProjectMember)}. */
+    public void addTask(Task task) {
+        tasks.add(task);
+        task.setProject(this);
+    }
 }
