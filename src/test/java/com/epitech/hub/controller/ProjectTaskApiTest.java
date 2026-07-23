@@ -1,6 +1,11 @@
 package com.epitech.hub.controller;
 
+import com.epitech.hub.entity.Project;
+import com.epitech.hub.entity.ProjectMember;
+import com.epitech.hub.entity.Role;
 import com.epitech.hub.entity.User;
+import com.epitech.hub.repository.ProjectMemberRepository;
+import com.epitech.hub.repository.ProjectRepository;
 import com.epitech.hub.repository.UserRepository;
 import com.epitech.hub.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -42,25 +48,57 @@ class ProjectTaskApiTest {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private ProjectRepository projectRepository;
+    @Autowired
+    private ProjectMemberRepository projectMemberRepository;
+    @Autowired
     private JwtService jwtService;
 
     private Long ownerId;
     private String token;
 
+    /** Un utilisateur qui n'appartient a aucun projet, pour tester les refus d'acces. */
+    private Long outsiderId;
+    private String outsiderToken;
+
     @BeforeEach
     void setUp() {
-        User owner = userRepository.save(User.builder()
-                .email("owner@epitech.eu")
-                .username("owner")
-                .passwordHash("$2a$10$fakehashfortestingpurposesonly000000000000000000000000")
-                .build());
+        User owner = createUser("owner@epitech.eu", "owner");
         ownerId = owner.getId();
         token = jwtService.generateToken(owner.getId(), owner.getEmail());
+
+        User outsider = createUser("outsider@epitech.eu", "outsider");
+        outsiderId = outsider.getId();
+        outsiderToken = jwtService.generateToken(outsider.getId(), outsider.getEmail());
     }
 
-    /** Attache le jeton Bearer a une requete, comme le ferait un client authentifie. */
+    private User createUser(String email, String username) {
+        return userRepository.save(User.builder()
+                .email(email)
+                .username(username)
+                .passwordHash("$2a$10$fakehashfortestingpurposesonly000000000000000000000000")
+                .build());
+    }
+
+    /**
+     * Ajoute un membre a un projet directement en base. La gestion des membres par API
+     * arrive au module 6 ; ici on cable la relation pour tester l'assignation a un membre.
+     */
+    private void addMember(Long projectId, Long userId, Role role) {
+        Project project = projectRepository.findById(projectId).orElseThrow();
+        User user = userRepository.findById(userId).orElseThrow();
+        projectMemberRepository.save(ProjectMember.builder()
+                .project(project).user(user).role(role).build());
+    }
+
+    /** Attache le jeton Bearer du proprietaire a une requete. */
     private MockHttpServletRequestBuilder authed(MockHttpServletRequestBuilder builder) {
         return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+    }
+
+    /** Attache le jeton Bearer de l'utilisateur exterieur. */
+    private MockHttpServletRequestBuilder asOutsider(MockHttpServletRequestBuilder builder) {
+        return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + outsiderToken);
     }
 
     private Long createProject(String name) throws Exception {
@@ -248,5 +286,104 @@ class ProjectTaskApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body.toString()))
                 .andExpect(status().isBadRequest());
+    }
+
+    // --- Module 5 : appartenance et operations metier ---------------------------------
+
+    @Test
+    @DisplayName("la liste ne montre que les projets dont on est membre")
+    void listShowsOnlyOwnProjects() throws Exception {
+        createProject("Projet du proprietaire");
+
+        // Le proprietaire voit son projet...
+        mockMvc.perform(authed(get("/api/projects")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        // ...mais l'utilisateur exterieur ne voit rien.
+        mockMvc.perform(asOutsider(get("/api/projects")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("un non-membre se voit refuser l'acces au projet (403)")
+    void nonMemberIsForbidden() throws Exception {
+        Long projectId = createProject("Projet prive");
+
+        mockMvc.perform(asOutsider(get("/api/projects/{id}", projectId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.title").value("Acces refuse"));
+
+        mockMvc.perform(asOutsider(get("/api/projects/{projectId}/tasks", projectId)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(asOutsider(delete("/api/projects/{id}", projectId)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("PATCH .../status change le statut sans toucher au reste")
+    void changeStatusEndpoint() throws Exception {
+        Long projectId = createProject("Projet");
+        Long taskId = createTask(projectId, "Tache a avancer");
+
+        ObjectNode body = objectMapper.createObjectNode().put("status", "IN_PROGRESS");
+
+        mockMvc.perform(authed(patch("/api/projects/{projectId}/tasks/{taskId}/status",
+                        projectId, taskId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.title").value("Tache a avancer"));
+    }
+
+    @Test
+    @DisplayName("PATCH .../assignee attribue la tache a un membre du projet")
+    void assignToMemberEndpoint() throws Exception {
+        Long projectId = createProject("Projet");
+        Long taskId = createTask(projectId, "Tache a assigner");
+        // On fait de l'outsider un vrai membre pour pouvoir lui assigner la tache.
+        addMember(projectId, outsiderId, Role.MEMBER);
+
+        ObjectNode body = objectMapper.createObjectNode().put("assigneeId", outsiderId);
+
+        mockMvc.perform(authed(patch("/api/projects/{projectId}/tasks/{taskId}/assignee",
+                        projectId, taskId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignee.id").value(outsiderId))
+                .andExpect(jsonPath("$.assignee.username").value("outsider"));
+    }
+
+    @Test
+    @DisplayName("assigner une tache a un non-membre est refuse (403)")
+    void assignToNonMemberIsForbidden() throws Exception {
+        Long projectId = createProject("Projet");
+        Long taskId = createTask(projectId, "Tache");
+
+        // outsiderId existe mais n'est pas membre du projet.
+        ObjectNode body = objectMapper.createObjectNode().put("assigneeId", outsiderId);
+
+        mockMvc.perform(authed(patch("/api/projects/{projectId}/tasks/{taskId}/assignee",
+                        projectId, taskId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value(
+                        "L'utilisateur vise n'est pas membre de ce projet"));
+    }
+
+    /** Cree une tache minimale et renvoie son identifiant. */
+    private Long createTask(Long projectId, String title) throws Exception {
+        ObjectNode body = objectMapper.createObjectNode().put("title", title);
+        String json = mockMvc.perform(authed(post("/api/projects/{projectId}/tasks", projectId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.toString()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(json).get("id").asLong();
     }
 }

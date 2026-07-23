@@ -12,6 +12,7 @@ import com.epitech.hub.repository.ProjectMemberRepository;
 import com.epitech.hub.repository.ProjectRepository;
 import com.epitech.hub.repository.TaskRepository;
 import com.epitech.hub.repository.UserRepository;
+import com.epitech.hub.security.ProjectSecurity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,18 +22,22 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** Tests unitaires : les depots sont simules, aucune base n'est demarree. */
+/** Tests unitaires : les depots et le garde d'acces sont simules, aucune base n'est demarree. */
 @ExtendWith(MockitoExtension.class)
 class ProjectServiceTest {
 
@@ -44,6 +49,8 @@ class ProjectServiceTest {
     private TaskRepository taskRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private ProjectSecurity projectSecurity;
 
     @InjectMocks
     private ProjectService projectService;
@@ -53,6 +60,19 @@ class ProjectServiceTest {
     @BeforeEach
     void setUp() {
         owner = User.builder().id(1L).username("xavier").email("xavier@epitech.eu").build();
+    }
+
+    @Test
+    @DisplayName("la liste ne renvoie que les projets de l'utilisateur")
+    void listReturnsOnlyUserProjects() {
+        Project project = Project.builder().id(1L).name("Mien").owner(owner).build();
+        when(projectRepository.findAllForMember(1L)).thenReturn(List.of(project));
+
+        List<ProjectResponse> result = projectService.findAllForUser(1L);
+
+        assertThat(result).singleElement()
+                .satisfies(p -> assertThat(p.name()).isEqualTo("Mien"));
+        verify(projectRepository).findAllForMember(1L);
     }
 
     @Test
@@ -98,10 +118,10 @@ class ProjectServiceTest {
     @Test
     @DisplayName("la suppression retire taches et adhesions avant le projet")
     void deleteRemovesChildrenFirst() {
-        when(projectRepository.existsById(7L)).thenReturn(true);
+        projectService.delete(7L, 1L);
 
-        projectService.delete(7L);
-
+        // La verification d'appartenance precede toute suppression.
+        verify(projectSecurity).requireMember(7L, 1L);
         InOrder inOrder = inOrder(taskRepository, projectMemberRepository, projectRepository);
         inOrder.verify(taskRepository).deleteByProjectId(7L);
         inOrder.verify(projectMemberRepository).deleteByProjectId(7L);
@@ -129,18 +149,33 @@ class ProjectServiceTest {
         when(projectRepository.findByIdWithOwner(7L)).thenReturn(Optional.of(project));
 
         ProjectResponse response = projectService.update(7L,
-                new UpdateProjectRequest("Nouveau nom", "Nouvelle"));
+                new UpdateProjectRequest("Nouveau nom", "Nouvelle"), 1L);
 
         assertThat(response.name()).isEqualTo("Nouveau nom");
         assertThat(response.description()).isEqualTo("Nouvelle");
+        verify(projectSecurity).requireMember(7L, 1L);
+    }
+
+    @Test
+    @DisplayName("consulter un projet dont on n'est pas membre est refuse")
+    void findByIdDeniedForNonMember() {
+        doThrow(new AccessDeniedException("non membre"))
+                .when(projectSecurity).requireMember(5L, 1L);
+
+        assertThatThrownBy(() -> projectService.findById(5L, 1L))
+                .isInstanceOf(AccessDeniedException.class);
+
+        // On ne charge meme pas le projet si l'acces est refuse.
+        verify(projectRepository, never()).findByIdWithOwner(anyLong());
     }
 
     @Test
     @DisplayName("consulter un projet inexistant leve une erreur 404")
     void findByIdFailsWhenMissing() {
-        when(projectRepository.findByIdWithOwner(123L)).thenReturn(Optional.empty());
+        doThrow(ResourceNotFoundException.project(123L))
+                .when(projectSecurity).requireMember(123L, 1L);
 
-        assertThatThrownBy(() -> projectService.findById(123L))
+        assertThatThrownBy(() -> projectService.findById(123L, 1L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("123");
     }
@@ -148,9 +183,10 @@ class ProjectServiceTest {
     @Test
     @DisplayName("supprimer un projet inexistant leve une erreur 404")
     void deleteFailsWhenMissing() {
-        when(projectRepository.existsById(123L)).thenReturn(false);
+        doThrow(ResourceNotFoundException.project(123L))
+                .when(projectSecurity).requireMember(123L, 1L);
 
-        assertThatThrownBy(() -> projectService.delete(123L))
+        assertThatThrownBy(() -> projectService.delete(123L, 1L))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(taskRepository, never()).deleteByProjectId(any());
