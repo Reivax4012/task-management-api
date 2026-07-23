@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -27,6 +28,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ProblemDetail handleNotFound(ResourceNotFoundException ex) {
         return build(HttpStatus.NOT_FOUND, "Ressource introuvable", ex.getMessage());
+    }
+
+    @ExceptionHandler(DuplicateResourceException.class)
+    public ProblemDetail handleDuplicate(DuplicateResourceException ex) {
+        return build(HttpStatus.CONFLICT, "Conflit", ex.getMessage());
+    }
+
+    /**
+     * Echec de connexion. Le message reste volontairement generique : preciser si c'est
+     * l'email ou le mot de passe qui est faux permettrait d'enumerer les comptes existants.
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ProblemDetail handleAuthentication(AuthenticationException ex) {
+        return build(HttpStatus.UNAUTHORIZED, "Echec de l'authentification",
+                "Email ou mot de passe incorrect");
     }
 
     /** Declenchee par {@code @Valid} lorsqu'un champ du corps de la requete est invalide. */
