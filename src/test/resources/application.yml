@@ -13,6 +13,14 @@ spring:
     open-in-view: false
     show-sql: false
 
+# Ce fichier remplace entierement l'application.yml principal pendant les tests (meme nom
+# sur le classpath) : les parametres JWT doivent donc y etre repetes, sans quoi le secret
+# serait nul au demarrage du contexte.
+hub:
+  jwt:
+    secret: test-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+    expiration-ms: 3600000
+
 logging:
   level:
     com.epitech.hub: DEBUG

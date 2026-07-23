@@ -23,6 +23,16 @@ spring:
 server:
   port: 8080
 
+# Parametres du jeton JWT. Le secret DOIT etre surcharge en production par la variable
+# d'environnement JWT_SECRET : la valeur par defaut n'existe que pour le developpement
+# local et ne doit jamais proteger de vraies donnees. Il doit faire au moins 256 bits
+# (32 caracteres) pour l'algorithme HS256.
+hub:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-change-me-0123456789-abcdefghijklmnop}
+    # Duree de validite du jeton, en millisecondes (ici 24 heures).
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
 logging:
   level:
     com.epitech.hub: DEBUG
