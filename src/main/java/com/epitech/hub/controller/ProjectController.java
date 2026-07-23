@@ -28,14 +28,16 @@ public class ProjectController {
 
     private final ProjectService projectService;
 
+    /** Ne renvoie que les projets dont l'utilisateur courant est membre. */
     @GetMapping
-    public List<ProjectResponse> list() {
-        return projectService.findAll();
+    public List<ProjectResponse> list(@AuthenticationPrincipal UserPrincipal principal) {
+        return projectService.findAllForUser(principal.id());
     }
 
     @GetMapping("/{id}")
-    public ProjectResponse get(@PathVariable Long id) {
-        return projectService.findById(id);
+    public ProjectResponse get(@PathVariable Long id,
+                               @AuthenticationPrincipal UserPrincipal principal) {
+        return projectService.findById(id, principal.id());
     }
 
     /**
@@ -54,13 +56,15 @@ public class ProjectController {
 
     @PutMapping("/{id}")
     public ProjectResponse update(@PathVariable Long id,
-                                  @Valid @RequestBody UpdateProjectRequest request) {
-        return projectService.update(id, request);
+                                  @Valid @RequestBody UpdateProjectRequest request,
+                                  @AuthenticationPrincipal UserPrincipal principal) {
+        return projectService.update(id, request, principal.id());
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        projectService.delete(id);
+    public ResponseEntity<Void> delete(@PathVariable Long id,
+                                       @AuthenticationPrincipal UserPrincipal principal) {
+        projectService.delete(id, principal.id());
         return ResponseEntity.noContent().build();
     }
 }

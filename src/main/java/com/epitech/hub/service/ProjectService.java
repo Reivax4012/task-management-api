@@ -12,6 +12,7 @@ import com.epitech.hub.repository.ProjectMemberRepository;
 import com.epitech.hub.repository.ProjectRepository;
 import com.epitech.hub.repository.TaskRepository;
 import com.epitech.hub.repository.UserRepository;
+import com.epitech.hub.security.ProjectSecurity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,14 +28,17 @@ public class ProjectService {
     private final ProjectMemberRepository projectMemberRepository;
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final ProjectSecurity projectSecurity;
 
-    public List<ProjectResponse> findAll() {
-        return projectRepository.findAllWithOwner().stream()
+    /** Liste les projets dont l'utilisateur est membre, et eux seuls. */
+    public List<ProjectResponse> findAllForUser(Long userId) {
+        return projectRepository.findAllForMember(userId).stream()
                 .map(ProjectResponse::from)
                 .toList();
     }
 
-    public ProjectResponse findById(Long id) {
+    public ProjectResponse findById(Long id, Long userId) {
+        projectSecurity.requireMember(id, userId);
         return ProjectResponse.from(getProjectOrThrow(id));
     }
 
@@ -65,7 +69,8 @@ public class ProjectService {
     }
 
     @Transactional
-    public ProjectResponse update(Long id, UpdateProjectRequest request) {
+    public ProjectResponse update(Long id, UpdateProjectRequest request, Long userId) {
+        projectSecurity.requireMember(id, userId);
         Project project = getProjectOrThrow(id);
         project.setName(request.name());
         project.setDescription(request.description());
@@ -83,10 +88,8 @@ public class ProjectService {
      * en masse ne depend, elle, d'aucun etat charge.
      */
     @Transactional
-    public void delete(Long id) {
-        if (!projectRepository.existsById(id)) {
-            throw ResourceNotFoundException.project(id);
-        }
+    public void delete(Long id, Long userId) {
+        projectSecurity.requireMember(id, userId);
         taskRepository.deleteByProjectId(id);
         projectMemberRepository.deleteByProjectId(id);
         projectRepository.deleteById(id);
