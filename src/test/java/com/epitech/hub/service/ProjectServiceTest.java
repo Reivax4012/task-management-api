@@ -66,7 +66,7 @@ class ProjectServiceTest {
         });
 
         ProjectResponse response = projectService.create(
-                new CreateProjectRequest("Projet HUB", "Description", 1L));
+                new CreateProjectRequest("Projet HUB", "Description"), 1L);
 
         assertThat(response.id()).isEqualTo(42L);
         assertThat(response.owner().username()).isEqualTo("xavier");
@@ -84,7 +84,7 @@ class ProjectServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
         when(projectRepository.save(any(Project.class))).thenAnswer(i -> i.getArgument(0));
 
-        projectService.create(new CreateProjectRequest("Projet HUB", null, 1L));
+        projectService.create(new CreateProjectRequest("Projet HUB", null), 1L);
 
         ArgumentCaptor<Project> captor = ArgumentCaptor.forClass(Project.class);
         verify(projectRepository).save(captor.capture());
@@ -114,7 +114,7 @@ class ProjectServiceTest {
         when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> projectService.create(
-                new CreateProjectRequest("Projet", null, 99L)))
+                new CreateProjectRequest("Projet", null), 99L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("99");
 

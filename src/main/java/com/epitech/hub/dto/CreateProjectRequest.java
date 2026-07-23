@@ -1,13 +1,11 @@
 package com.epitech.hub.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * @param ownerId provisoire : tant que l'authentification n'existe pas (module 4),
- *                le proprietaire doit etre fourni par l'appelant. Il sera ensuite
- *                deduit du jeton JWT et ce champ disparaitra.
+ * Le proprietaire n'est plus fourni par le client : il est deduit du jeton JWT de
+ * l'appelant (module 4). Un utilisateur ne peut donc creer un projet qu'en son propre nom.
  */
 public record CreateProjectRequest(
 
@@ -16,9 +14,6 @@ public record CreateProjectRequest(
         String name,
 
         @Size(max = 2000, message = "La description ne peut pas depasser 2000 caracteres")
-        String description,
-
-        @NotNull(message = "Le proprietaire est obligatoire")
-        Long ownerId
+        String description
 ) {
 }

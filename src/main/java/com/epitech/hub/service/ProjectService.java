@@ -44,9 +44,9 @@ public class ProjectService {
      * permissions activees (module 6).
      */
     @Transactional
-    public ProjectResponse create(CreateProjectRequest request) {
-        User owner = userRepository.findById(request.ownerId())
-                .orElseThrow(() -> ResourceNotFoundException.user(request.ownerId()));
+    public ProjectResponse create(CreateProjectRequest request, Long ownerId) {
+        User owner = userRepository.findById(ownerId)
+                .orElseThrow(() -> ResourceNotFoundException.user(ownerId));
 
         Project project = Project.builder()
                 .name(request.name())

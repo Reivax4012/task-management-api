@@ -3,10 +3,12 @@ package com.epitech.hub.controller;
 import com.epitech.hub.dto.CreateProjectRequest;
 import com.epitech.hub.dto.ProjectResponse;
 import com.epitech.hub.dto.UpdateProjectRequest;
+import com.epitech.hub.security.UserPrincipal;
 import com.epitech.hub.service.ProjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,11 +38,15 @@ public class ProjectController {
         return projectService.findById(id);
     }
 
-    /** Repond 201 avec l'en-tete Location pointant vers la ressource creee. */
+    /**
+     * Repond 201 avec l'en-tete Location pointant vers la ressource creee.
+     * Le proprietaire est l'utilisateur authentifie, injecte depuis le contexte de securite.
+     */
     @PostMapping
     public ResponseEntity<ProjectResponse> create(@Valid @RequestBody CreateProjectRequest request,
+                                                  @AuthenticationPrincipal UserPrincipal principal,
                                                   UriComponentsBuilder uriBuilder) {
-        ProjectResponse created = projectService.create(request);
+        ProjectResponse created = projectService.create(request, principal.id());
         return ResponseEntity
                 .created(uriBuilder.path("/api/projects/{id}").build(created.id()))
                 .body(created);
