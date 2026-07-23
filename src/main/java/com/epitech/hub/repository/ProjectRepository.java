@@ -17,6 +17,20 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     @Query("SELECT p FROM Project p JOIN FETCH p.owner ORDER BY p.createdAt DESC")
     List<Project> findAllWithOwner();
 
+    /**
+     * Ne renvoie que les projets dont l'utilisateur est membre : la liste des projets est
+     * personnelle, on n'expose pas a un utilisateur les projets auxquels il n'appartient pas.
+     * La jointure sur {@code members} filtre, le {@code JOIN FETCH owner} evite le N+1.
+     */
+    @Query("""
+            SELECT p FROM Project p
+            JOIN FETCH p.owner
+            JOIN p.members m
+            WHERE m.user.id = :userId
+            ORDER BY p.createdAt DESC
+            """)
+    List<Project> findAllForMember(Long userId);
+
     @Query("SELECT p FROM Project p JOIN FETCH p.owner WHERE p.id = :id")
     Optional<Project> findByIdWithOwner(Long id);
 }

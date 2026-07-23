@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -43,6 +44,16 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleAuthentication(AuthenticationException ex) {
         return build(HttpStatus.UNAUTHORIZED, "Echec de l'authentification",
                 "Email ou mot de passe incorrect");
+    }
+
+    /**
+     * Utilisateur authentifie mais non autorise (ex. non membre du projet vise, ou role
+     * insuffisant au module 6). Couvre aussi les refus des annotations {@code @PreAuthorize},
+     * qui levent une sous-classe d'AccessDeniedException.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(AccessDeniedException ex) {
+        return build(HttpStatus.FORBIDDEN, "Acces refuse", ex.getMessage());
     }
 
     /** Declenchee par {@code @Valid} lorsqu'un champ du corps de la requete est invalide. */
